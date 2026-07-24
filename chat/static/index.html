@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>fugu-chat</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🐡 fugu-chat <span class="tag">Phase 0</span></div>
+    <div class="controls">
+      <label>Provider
+        <select id="provider"></select>
+      </label>
+      <label>Model
+        <select id="model"></select>
+      </label>
+      <label>System
+        <select id="preset"></select>
+      </label>
+      <button id="clear" title="この会話を消す(測定ログは残る)">会話クリア</button>
+    </div>
+  </header>
+
+  <main id="log" class="log" aria-live="polite"></main>
+
+  <form id="composer" class="composer">
+    <textarea id="input" rows="2" placeholder="メッセージを入力(Ctrl/⌘+Enter で送信)"></textarea>
+    <div class="composer-side">
+      <label class="toolflag" title="get_weather ツールを observation 用に同送する(実行はしない)">
+        <input type="checkbox" id="withtool" /> tool 観測
+      </label>
+      <button id="send" type="submit">送信</button>
+    </div>
+  </form>
+
+  <footer class="statusbar" id="status">準備中…</footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "usage_log_path": "data/usage.jsonl",
+  "raw_log_path": "data/raw.jsonl",
+  "default_provider": "fugu",
+  "default_model": "fugu",
+  "system_prompt_presets": {
+    "default": "You are a helpful assistant.",
+    "concise": "You are a concise assistant. Answer directly, no preamble."
+  },
+  "providers": {
+    "fugu": {
+      "adapter": "fugu",
+      "base_url": "https://api.sakana.ai/v1",
+      "api_key_env": "FUGU_API_KEY",
+      "default_model": "fugu",
+      "models": ["fugu", "fugu-cyber", "fugu-ultra", "fugu-ultra-v1.1"],
+      "request_timeout_s": 600,
+      "_comment_rates": "従量課金レートは非公開/変動のためここに外出し。cost 計算は dashboard 側の担当。単位は $ / 1M tok。不明な値は null。",
+      "rates": {
+        "input_per_mtok": null,
+        "output_per_mtok": null,
+        "cached_input_per_mtok": null
+      }
+    }
+  }
+}
