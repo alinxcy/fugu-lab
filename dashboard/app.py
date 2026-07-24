@@ -53,6 +53,11 @@ def load_live(path: str):
     """前回オフセット以降(追記分)だけを読み、蓄積に足す。"""
     if "live_records" not in st.session_state:
         _reset_live_state()
+    # 入力パスが変わったら、前のファイルの蓄積とオフセットは無意味なのでリセットする
+    # (別ファイルのオフセットを流用すると、途中から読んだり取りこぼしたりする)。
+    if st.session_state.get("live_path_current") != path:
+        _reset_live_state()
+        st.session_state.live_path_current = path
     result = load_file(
         path,
         since_offset=st.session_state.live_offset,
@@ -240,8 +245,15 @@ else:
                                 "model": r.model})
         if ts_rows:
             ts_df = pd.DataFrame(ts_rows)
-            ts_df["timestamp"] = pd.to_datetime(ts_df["timestamp"])
-            st.line_chart(ts_df.set_index("timestamp"), y="裏率")
+            # timestamp はレコードによってマイクロ秒の有無が揺れる(書式が一定でない)。
+            # 先頭から書式を推論させると不一致でクラッシュするので、ISO8601 を明示し、
+            # それでも壊れた値は握り潰さず NaT にして描画は続ける(測定中に落とさない)。
+            ts_df["timestamp"] = pd.to_datetime(
+                ts_df["timestamp"], format="ISO8601", errors="coerce", utc=True
+            )
+            ts_df = ts_df.dropna(subset=["timestamp"])
+            if not ts_df.empty:
+                st.line_chart(ts_df.set_index("timestamp"), y="裏率")
 
     # 種類別(モデル別)傾向 — 軽い質問ほど比率が悪化するなら常用に致命的
     model_rows = []

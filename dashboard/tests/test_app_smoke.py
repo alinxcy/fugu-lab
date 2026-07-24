@@ -48,6 +48,24 @@ def test_batch_sample_renders_all_sections():
     assert len(at.error) >= 1
 
 
+def test_mixed_precision_timestamps_do_not_crash(tmp_path):
+    """timestamp のマイクロ秒有無が混在しても時系列描画で落ちない(実測で出た回帰)。
+
+    ライブ中にサンプル(.%f 付き)へマイクロ秒無しレコードが追記されると、
+    pandas が先頭から書式を推論して不一致で ValueError になっていた。
+    """
+    path = tmp_path / "usage.jsonl"
+    path.write_text(
+        _REC.format(id="micros", ts="2026-07-25T01:00:00.123456+00:00")
+        + _REC.format(id="no_micros", ts="2026-07-25T02:00:00+00:00"),
+        encoding="utf-8",
+    )
+    at = AppTest.from_file(APP, default_timeout=60).run()
+    at.text_input[0].set_value(str(path)).run()
+    assert at.exception == []
+    assert len(at.session_state["live_records"]) == 2
+
+
 def test_live_tail_diff_accumulates(tmp_path):
     """追記を検知して末尾差分だけ読み、蓄積が増える(全体再読み込みしない)。"""
     path = tmp_path / "usage.jsonl"
