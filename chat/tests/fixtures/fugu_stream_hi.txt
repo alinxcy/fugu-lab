@@ -1,0 +1,9 @@
+data: {"id": "chatcmpl-fec7416a1310", "choices": [{"delta": {"role": "assistant"}, "index": 0}], "created": 1784888758, "model": "fugu", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-fec7416a1310", "choices": [{"delta": {"content": "hi"}, "index": 0}], "created": 1784888758, "model": "fugu", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-fec7416a1310", "choices": [{"delta": {}, "finish_reason": "stop", "index": 0}], "created": 1784888758, "model": "fugu", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-fec7416a1310", "created": 1784888758, "model": "fugu", "choices": [], "usage": {"prompt_tokens": 99, "completion_tokens": 17, "total_tokens": 116, "prompt_tokens_details": {"cached_tokens": 0, "orchestration_input_tokens": 0, "orchestration_input_cached_tokens": 0}, "completion_tokens_details": {"reasoning_tokens": 12, "orchestration_output_tokens": 0}}, "object": "chat.completion.chunk"}
+
+data: [DONE]
