@@ -6,6 +6,9 @@
 - `fugu_nonstream_hi.json` — 非ストリーミング（`stream:false`）の完全レスポンス。
 - `fugu_stream_hi.txt` — ストリーミング（`stream:true` + `stream_options.include_usage:true`）の
   生 SSE。最終チャンクに usage が載る形を含む。
+- `fugu_stream_toolcall_weather.txt` — tool_calls を含むストリーミング SSE（get_weather を呼ぶ例）。
+- `fugu_error_invalid_model.json` — エラー時のレスポンス封筒（不正モデル名 → 4xx）。
+- `fugu_models.json` — `GET /v1/models` の実レスポンス（既定モデルIDの正）。
 
 ## 実測で判明した usage の実形状（重要）
 
@@ -46,6 +49,31 @@
    本 fixtures は付けて取得している。
 4. スキーマ未定義の追加フィールド（`orchestration_input_cached_tokens`, `reasoning_tokens`）は
    `raw_usage` に丸ごと残るので取りこぼさない。first-class にするかは schema 側の判断（下記）。
+
+## tool_calls のストリーミング組み立て規則（実測）
+
+- delta は `choices[0].delta.tool_calls[]`。**`index` で束ねる。**
+- **初回チャンク**のみ `id` / `function.name` / `type` が入り、`function.arguments` は `""`。
+- **以降のチャンク**は `index` と `function.arguments` の**断片**だけ（`{"` → `city` → `":"`
+  → `Os` → `aka` → `"}`）。同じ index の arguments を順に連結する。
+- 完了時 `finish_reason: "tool_calls"`。その後に usage チャンク（`choices: []`）→ `[DONE]`。
+- **引数 JSON は全断片を連結してから初めてパースする。** 途中でパースしない。
+  連結後にパース失敗したら「壊れて返った」事実として保持・表示する（握り潰さない＝SPEC要件）。
+
+## エラー封筒（実測）
+
+```json
+{ "error": { "message": "...", "type": "invalid_request_error", "request_id": "..." } }
+```
+
+失敗時も UsageRecord は必ず1件生成し、`error` に message（＋できれば type/request_id）を入れ、
+usage 系は取れなければ null にする（0で埋めない）。
+
+## モデルID（`GET /v1/models` 実測）
+
+`fugu`, `fugu-cyber`, `fugu-ultra`, `fugu-ultra-20260615`, `fugu-ultra-v1.0`, `fugu-ultra-v1.1`
+（`endpoints.example.json` の既定はこの実在値から選ぶ）。
+※ `fugu-ultra` 系は fan-out が重く、実測で 2 分でも完了しないことがある（レイテンシ注意）。
 
 ## スキーマ検討事項（`schema/usage-record.md` の担当者/ユーザー判断）
 

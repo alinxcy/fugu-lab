@@ -1,0 +1,21 @@
+data: {"id": "chatcmpl-700f42672e73", "choices": [{"delta": {"role": "assistant"}, "index": 0}], "created": 1784890300, "model": "fugu", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-700f42672e73", "choices": [{"delta": {"tool_calls": [{"index": 0, "id": "call_VhibycA1j04wMv9iFnZ7yHiI", "function": {"arguments": "", "name": "get_weather"}, "type": "function"}]}, "index": 0}], "created": 1784890300, "model": "fugu", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-700f42672e73", "choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "{\""}}]}, "index": 0}], "created": 1784890300, "model": "fugu", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-700f42672e73", "choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "city"}}]}, "index": 0}], "created": 1784890300, "model": "fugu", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-700f42672e73", "choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "\":\""}}]}, "index": 0}], "created": 1784890300, "model": "fugu", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-700f42672e73", "choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "Os"}}]}, "index": 0}], "created": 1784890300, "model": "fugu", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-700f42672e73", "choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "aka"}}]}, "index": 0}], "created": 1784890300, "model": "fugu", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-700f42672e73", "choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "\"}"}}]}, "index": 0}], "created": 1784890300, "model": "fugu", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-700f42672e73", "choices": [{"delta": {}, "finish_reason": "tool_calls", "index": 0}], "created": 1784890300, "model": "fugu", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-700f42672e73", "created": 1784890300, "model": "fugu", "choices": [], "usage": {"prompt_tokens": 100, "completion_tokens": 19, "total_tokens": 119, "prompt_tokens_details": {"cached_tokens": 0, "orchestration_input_tokens": 0, "orchestration_input_cached_tokens": 0}, "completion_tokens_details": {"reasoning_tokens": 0, "orchestration_output_tokens": 0}}, "object": "chat.completion.chunk"}
+
+data: [DONE]
