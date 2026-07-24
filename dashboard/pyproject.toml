@@ -1,0 +1,17 @@
+[project]
+name = "fugu-dashboard"
+version = "0.1.0"
+description = "Fugu 使用データ ダッシュボード(契約判断用)"
+requires-python = ">=3.11"
+dependencies = [
+    "streamlit",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+# tests は `dashboard.core.*` を import する。リポジトリルート(このファイルの1つ上)を
+# パスに載せることで、chat/ 側と独立に dashboard 単体でテストできる。
+pythonpath = [".."]
+testpaths = ["tests"]

@@ -1,0 +1,6 @@
+# 実レート(変動/一部非公開)。example のみコミットする。
+config/rates.toml
+
+__pycache__/
+*.pyc
+.pytest_cache/
