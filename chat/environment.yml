@@ -1,0 +1,20 @@
+name: fugu-chat
+# Sakana Fugu 計測用チャットアプリ (chat/) の実行環境。
+#   conda env create -f chat/environment.yml
+#   conda activate fugu-chat
+#   uvicorn app.main:app --reload   （実装後）
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      # --- runtime ---
+      - fastapi
+      - uvicorn[standard]
+      - httpx
+      - pydantic>=2
+      - python-dotenv
+      # --- dev / test (network 不要の単体テスト用) ---
+      - pytest
+      - pytest-asyncio
