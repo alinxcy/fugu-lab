@@ -108,8 +108,13 @@ def _chunk_has_tool_calls(chunk: dict[str, Any]) -> bool:
 def _measured_summary(record: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
     """この 1 レコード分の実測値だけを整形する(集計ではない)。
 
-    裏トークン比率 = (orchestration_input + orchestration_output) / (input + output)。
-    null と 0 を区別: どれか一つでも None なら比率は None(=不明)として返す。
+    実測で確認した重要事実: orchestration_* は表(prompt/completion)の部分集合ではなく
+    「追加で」課金されるトークン(fugu-ultra の例で 表980 に対し 裏46,387)。
+    したがって:
+      課金トークン総計 = input + output + orchestration_input + orchestration_output
+      裏トークン比率   = (orchestration_input + orchestration_output) / 課金トークン総計
+    null と 0 を区別: orchestration がどちらか None なら比率は None(=不明)。
+    (dashboard/ が中心指標として権威ある集計を行う。これは 1 レコードの目安表示。)
     """
     if not record:
         return None
@@ -118,17 +123,26 @@ def _measured_summary(record: Optional[dict[str, Any]]) -> Optional[dict[str, An
     oi = record.get("orchestration_input_tokens")
     oo = record.get("orchestration_output_tokens")
 
-    total = inp + out if (inp is not None and out is not None) else None
-    orch_ratio: Optional[float] = None
-    if oi is not None and oo is not None and total:
-        orch_ratio = (oi + oo) / total
+    visible = inp + out if (inp is not None and out is not None) else None
+    orch = oi + oo if (oi is not None and oo is not None) else None
+
+    total_billed: Optional[int]
+    orch_ratio: Optional[float]
+    if visible is not None and orch is not None:
+        total_billed = visible + orch
+        orch_ratio = (orch / total_billed) if total_billed else None
+    else:
+        total_billed = visible  # 裏が不明なら表のみ(比率は不明)
+        orch_ratio = None
 
     return {
         "ttft_s": record.get("ttft_s"),
         "elapsed_s": record.get("elapsed_s"),
         "input_tokens": inp,
         "output_tokens": out,
-        "total_tokens": total,
+        "visible_tokens": visible,
+        "orchestration_tokens": orch,
+        "total_tokens": total_billed,  # 表＋裏(課金総計)。裏不明なら表のみ。
         "orchestration_input_tokens": oi,
         "orchestration_output_tokens": oo,
         "orchestration_ratio": orch_ratio,

@@ -75,6 +75,31 @@ usage 系は取れなければ null にする（0で埋めない）。
 （`endpoints.example.json` の既定はこの実在値から選ぶ）。
 ※ `fugu-ultra` 系は fan-out が重く、実測で 2 分でも完了しないことがある（レイテンシ注意）。
 
+## 裏トークンは「追加課金」であって表の部分集合ではない（重要・実測）
+
+`fugu_ultra_orchestration_usage.json` は fugu-ultra に複雑タスクを投げた実 usage:
+
+```
+prompt_tokens 180 / completion_tokens 800 / total_tokens 980   ← 表(見える分)
+orchestration_input_tokens  20,399
+orchestration_output_tokens 25,988                              ← 裏 = 46,387
+```
+
+`orchestration_input_tokens`(20,399) は `prompt_tokens`(180) を大きく超える。
+つまり **orchestration_* は prompt/completion の内訳(部分集合)ではなく、別枠で追加課金される**。
+`total_tokens` にも裏は含まれない。したがって裏トークン比率の分母は表だけではダメで:
+
+```
+課金トークン総計 = input + output + orchestration_input + orchestration_output
+裏トークン比率   = (orchestration_input + orchestration_output) / 課金トークン総計
+```
+
+この例では 46,387 / 47,367 ≒ **98%** が裏。②ダッシュボードの中心指標はこの定義で。
+（`orchestration_input_cached_tokens` は orchestration_input の内数=キャッシュヒット分。二重計上しない。）
+
+補足: fugu-ultra はこの1リクエストで **427 秒** かかった。ttft/elapsed を分けて記録する
+意義が実データで裏付けられた(初動と総時間の体感差)。
+
 ## スキーマ検討事項（`schema/usage-record.md` の担当者/ユーザー判断）
 
 - `reasoning_tokens` は「課金される出力のうち中身が見えない分」であり、
