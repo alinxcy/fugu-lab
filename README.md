@@ -11,7 +11,7 @@ Sakana Fugu を月額契約すべきか判断するための計測環境。ロ�
 | ディレクトリ | 中身 | 仕様書 |
 |---|---|---|
 | `chat/` | Fugu を叩くチャットアプリ。使用データを JSONL に記録 | `chat/SPEC.md` |
-| `dashboard/` | JSONL を読み、契約判断のための集計を出す | `dashboard/SPEC.md`(別途配置) |
+| `dashboard/` | JSONL を読み、契約判断のための集計を出す | `dashboard/SPEC.md` |
 | `schema/` | 両者の唯一の結合点。UsageRecord の定義 | `schema/usage-record.md` |
 | `docs/` | 実装プロンプト等の参考資料 | `docs/implementation-prompt.md` |
 
