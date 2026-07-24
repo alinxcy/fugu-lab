@@ -1,0 +1,15 @@
+# --- secrets / config with keys（絶対にコミットしない） ---
+.env
+.env.*
+config/endpoints.json          # 実鍵入り。コミット対象は endpoints.example.json のみ
+
+# --- 測定データ・ログ（ローカルの使用実績。私的なので追跡しない） ---
+*.jsonl
+data/
+logs/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
