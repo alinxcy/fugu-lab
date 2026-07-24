@@ -39,20 +39,60 @@ Phase 0 の実接続で得た Fugu の挙動と、契約判断に効く「実力
 `Then explain... Let's refine the response to` が混入した例あり。
 **常用の実用性を測るなら「出力フォーマットの安定性」も評価軸に入れる。**
 
-## 4. 「裏(orchestration)」とは何か(現時点の理解)
+## 4. 「裏(orchestration)」とは何か(公式ドキュメントで確認)
 
-Sakana の公開説明では Fugu は「委任・エージェント間通信・成果統合に特化した LM で、
-1 リクエストを複数 LLM に振り分け、結果を 1 つの答えに統合する」。
+Sakana の公式 pricing/docs による定義:
 
-したがって orchestration トークンは、**裏で走る一連の処理の総量**と解釈できる:
-タスク分解・どのサブ LLM に何を投げるかの計画・サブ LLM への指示(input)と
-その生成(output)・最終統合。
+> orchestration トークンは、Fugu が **サブタスクを委任(delegate)し、中間結果を検証
+> (verify)し、統合ロジック(synthesis)を走らせ、自分自身を再帰的に呼ぶ(recursive
+> self-call)** ときに消費される。input/output とは別枠の「実トークン使用量」であり、
+> **最終価格に計上される。**
 
-ただし実測の規模（ultra で裏 input 16,328 / output 25,988）から見て、
-**「どの LLM に振るかを決める部分」だけではなく、裏で動くサブエージェント群の
-やり取り本体（見えない入出力）まで含む**と考えるのが自然。
-※ これは公開説明＋トークン規模からの**推測**。内部の実処理は API からは見えない
-（だからこそ `raw_usage` を無加工保存して事後に追える設計にしている）。
+フィールド定義(公式):
+
+| フィールド | 定義 |
+|---|---|
+| `orchestration_input_tokens` | orchestration に使われた入力トークンの総和 |
+| `orchestration_input_cached_tokens` | orchestration 入力のうちキャッシュヒット分 |
+| `orchestration_output_tokens` | orchestration の出力トークン |
+
+→ 「どの LLM に振るかを決める部分」**だけでなく、委任・検証・統合・再帰呼び出しを含む
+裏処理の総量**。当初の推測どおりで、**公式に確認できた**。
+`orchestration_input` は裏に食わせた入力、`orchestration_output` は裏が生成した中間出力。
+
+**最重要: 裏トークンは通常の input/output と同レートで課金される。**
+つまり「裏トークン比率」はそのまま**支払いの水増し率**に直結する(参考値ではなく実費)。
+
+## 4.5 料金と実コスト例(公式 pricing・2026-07-24 時点・要再確認)
+
+Pay-as-you-go(USD / 1M tokens、`標準 / >272K context` の順):
+
+| モデル | input | output | cached input |
+|---|---|---|---|
+| fugu-ultra | $5 / $10 | $30 / $45 | $0.50 / $1.00 |
+| fugu-cyber | $6 / $12 | $36 / $54 | $0.60 / $1.20 |
+| fugu(base) | 未取得(要確認) | | |
+
+サブスク: Standard $20(基準)/ Pro $100(10×)/ Max $200(20×)。基準の具体枠は非公開。
+
+**実コスト計算(前掲 ultra レコード: in297 / out6989 / 裏in16,328 / 裏out9,061):**
+裏は同レート課金なので、input系=297+16,328、output系=6,989+9,061:
+
+```
+input 系 : 16,625 tok × $5 /1M  = $0.083
+output系 : 16,050 tok × $30/1M  = $0.482
+合計     ≈ $0.565 / 1リクエスト
+（裏なしの見かけ = $0.211。裏が約 $0.354 を上乗せ）
+```
+
+**注目: 裏率はトークン基準で 78% だが、金額基準では約 63%。** output レートが input の
+6倍なので、可視 output が大きいと「トークン比率」と「金額比率」がズレる。
+→ **ダッシュボードはトークン比率だけでなく「金額基準の裏比率」も出すべき**
+(判断はお金で行うため)。レートは設定に外出し済み。
+
+出典: [console.sakana.ai/pricing](https://console.sakana.ai/pricing) /
+[sakana.ai/fugu](https://sakana.ai/fugu) /
+[emergent.sh 解説](https://emergent.sh/learn/sakana-fugu-pricing)
 
 ## 5. ベンチにできる設問カテゴリ(採点自動化できるものを選ぶ)
 

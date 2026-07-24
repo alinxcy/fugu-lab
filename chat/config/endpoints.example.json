@@ -15,11 +15,20 @@
       "default_model": "fugu",
       "models": ["fugu", "fugu-cyber", "fugu-ultra", "fugu-ultra-v1.1"],
       "request_timeout_s": 600,
-      "_comment_rates": "従量課金レートは非公開/変動のためここに外出し。cost 計算は dashboard 側の担当。単位は $ / 1M tok。不明な値は null。",
-      "rates": {
-        "input_per_mtok": null,
-        "output_per_mtok": null,
-        "cached_input_per_mtok": null
+      "_comment_rates": "従量課金レート($ / 1M tok)。cost 計算は dashboard 側の担当。orchestration_* も同レートで課金される(input系→input, output系→output, cached系→cached)。>272K context は over_272k レート。出典 console.sakana.ai/pricing (2026-07-24時点・要再確認)。不明値は null。",
+      "rates_per_model": {
+        "fugu-ultra": {
+          "input_per_mtok": 5, "output_per_mtok": 30, "cached_input_per_mtok": 0.5,
+          "input_per_mtok_over_272k": 10, "output_per_mtok_over_272k": 45, "cached_input_per_mtok_over_272k": 1.0
+        },
+        "fugu-cyber": {
+          "input_per_mtok": 6, "output_per_mtok": 36, "cached_input_per_mtok": 0.6,
+          "input_per_mtok_over_272k": 12, "output_per_mtok_over_272k": 54, "cached_input_per_mtok_over_272k": 1.2
+        },
+        "fugu": {
+          "input_per_mtok": null, "output_per_mtok": null, "cached_input_per_mtok": null,
+          "_note": "base fugu のレートは未取得。要確認。"
+        }
       }
     }
   }
