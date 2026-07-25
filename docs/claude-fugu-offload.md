@@ -57,6 +57,43 @@ base fugu は裏0で速く正確。**検証が機械化できる下請けは安�
   (別紙 `fugu-findings.md` §5.6)。外注の下請けには base 一択。
   ultra は「専門家チームを1発で回したい高価値タスク」を人間が明示指名するとき限定。
 
+## 実際に外注する道具: `tools/fugu_offload.py`
+
+毎回ハーネスを書き下ろすと、その手間が外注の利益を食う。CLI に固定してある。
+
+```bash
+# コード生成 → そのまま実行検証できる(前置き・フェンスは除去済み)
+python tools/fugu_offload.py --task code --prompt "関数 human_bytes(n) を書け" > out.py
+
+# 構造化抽出 → そのまま json.tool / jq にパイプできる
+python tools/fugu_offload.py --task json --prompt "次から [{task,owner,due}] を抽出: ..." | jq .
+
+# 正規表現 → そのまま re.compile できる文字列だけ返る
+PAT=$(python tools/fugu_offload.py --task regex --prompt "郵便番号にマッチ")
+
+# 標準入力も食える(長い原文の要約・翻訳)
+cat draft.md | python tools/fugu_offload.py --task summary --prompt "次を1文で要約:"
+```
+
+設計上の要点:
+
+- **既定で chat アプリ経由**(`FUGU_CHAT_URL`、既定 `http://127.0.0.1:8150`)で叩く。
+  つまり **外注 1 回ごとに UsageRecord が JSONL に追記される** — 作業がそのまま測定データになる。
+  アプリ未起動なら直接 API にフォールバックするが、その場合は記録されない旨を stderr で警告する。
+- `--task` が「出力形式の縛り」と「サニタイズ方法」を同時に決める。
+  前置き・コードフェンス・CoT 漏れを落としてから stdout に出すので、**パイプで次段に繋げる**。
+- 実測値(elapsed/表/裏/裏率)は stderr に出る。stdout は成果物だけ。
+- 既定モデルは `fugu`(base)。ultra は外注に不向きなので明示指定しない限り使わない。
+
+実測(この CLI 経由・すべて裏0):
+
+| task | 例 | 検証 | 結果 |
+|---|---|---|---|
+| code | `human_bytes(n)` | 実行 | ✅ 11.7s / 前置きなし・そのまま動作 |
+| json | 文 → `[{task,owner,due}]` | `json.tool` | ✅ 9.8s / 有効 JSON |
+| regex | 郵便番号 | `re.compile`+pos/neg | ✅ 8.3s / `\d{3}-\d{4}` 全判定正 |
+| summary | stdin パイプ | 原文照合 | ✅ 3.5s / 忠実 |
+
 ## ルーター(擬似コード)
 
 ```
