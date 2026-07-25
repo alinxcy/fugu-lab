@@ -84,6 +84,7 @@ cat draft.md | python tools/fugu_offload.py --task summary --prompt "次を1文�
   前置き・コードフェンス・CoT 漏れを落としてから stdout に出すので、**パイプで次段に繋げる**。
 - 実測値(elapsed/表/裏/裏率)は stderr に出る。stdout は成果物だけ。
 - 既定モデルは `fugu`(base)。ultra は外注に不向きなので明示指定しない限り使わない。
+- `--effort`(high/xhigh/max)は**明示時のみ**送る。効果は未確定(要追試)なので既定では送らない。
 
 実測(この CLI 経由・すべて裏0):
 

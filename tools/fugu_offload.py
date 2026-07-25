@@ -55,24 +55,26 @@ def build_prompt(task: str, user_prompt: str) -> str:
     return f"{prefix}\n\n{user_prompt}".strip() if prefix else user_prompt
 
 
-def build_params(model: str, max_tokens: int) -> dict[str, Any]:
+def build_params(model: str, max_tokens: int, effort: Optional[str] = None) -> dict[str, Any]:
     """provider に素通しするパラメータ。
 
-    実測(docs/fugu-findings.md §5.6 実験C): ultra は `reasoning.effort="high"` を
-    明示すると既定より裏 25〜33% 安く、30〜43% 速く、レイテンシも安定する。
-    下げる方向のノブは無いので high が最安。base fugu では effort は無効なので付けない。
+    `reasoning.effort`(high/xhigh/max)は **明示指定したときだけ** 送る。
+    予備実験(docs/fugu-findings.md §5.6 実験C)では ultra で high が既定より
+    安く・速い傾向が出たが、**n=2・単一タスクのみで未確定**。既定値としては採用しない。
+    base fugu では effort は無効(実測)。
     """
     params: dict[str, Any] = {"max_tokens": max_tokens}
-    if "ultra" in model or "cyber" in model:
-        params["reasoning"] = {"effort": "high"}
+    if effort:
+        params["reasoning"] = {"effort": effort}
     return params
 
 
-def call_via_app(prompt: str, model: str, max_tokens: int, timeout: float) -> tuple[str, dict]:
+def call_via_app(prompt: str, model: str, max_tokens: int, timeout: float,
+                 effort: Optional[str] = None) -> tuple[str, dict]:
     body = {
         "messages": [{"role": "user", "content": prompt}],
         "model": model,
-        "params": build_params(model, max_tokens),
+        "params": build_params(model, max_tokens, effort),
     }
     content = ""
     measured: dict[str, Any] = {}
@@ -99,7 +101,8 @@ def call_via_app(prompt: str, model: str, max_tokens: int, timeout: float) -> tu
     return content, measured
 
 
-def call_direct(prompt: str, model: str, max_tokens: int, timeout: float) -> tuple[str, dict]:
+def call_direct(prompt: str, model: str, max_tokens: int, timeout: float,
+                effort: Optional[str] = None) -> tuple[str, dict]:
     key = os.environ.get("FUGU_API_KEY")
     if not key:
         # chat/.env から拾う(リポジトリ内の運用に合わせる)
@@ -114,7 +117,7 @@ def call_direct(prompt: str, model: str, max_tokens: int, timeout: float) -> tup
         DIRECT_URL,
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": model, "messages": [{"role": "user", "content": prompt}],
-              **build_params(model, max_tokens)},
+              **build_params(model, max_tokens, effort)},
         timeout=timeout,
     )
     d = r.json()
@@ -176,6 +179,8 @@ def main() -> int:
     ap.add_argument("--stdin", action="store_true", help="標準入力を prompt の末尾に付ける")
     ap.add_argument("--model", default="fugu", help="既定 fugu(base)。ultra は外注に不向き")
     ap.add_argument("--max-tokens", type=int, default=2000, help="reasoning が枠を食うので余裕を持つ")
+    ap.add_argument("--effort", choices=["high", "xhigh", "max"], default=None,
+                    help="reasoning.effort を明示指定(未指定ならプロバイダ既定)。効果は未確定なので実験時のみ")
     ap.add_argument("--timeout", type=float, default=180.0)
     ap.add_argument("--raw-output", action="store_true", help="サニタイズせず生出力を出す")
     args = ap.parse_args()
@@ -192,12 +197,12 @@ def main() -> int:
 
     via = "app"
     try:
-        content, measured = call_via_app(prompt, args.model, args.max_tokens, args.timeout)
+        content, measured = call_via_app(prompt, args.model, args.max_tokens, args.timeout, args.effort)
     except Exception as e:  # noqa: BLE001
         print(f"[warn] chat アプリ経由に失敗({e})。直接 API にフォールバックします "
               f"— この呼び出しは JSONL に記録されません。", file=sys.stderr)
         via = "direct"
-        content, measured = call_direct(prompt, args.model, args.max_tokens, args.timeout)
+        content, measured = call_direct(prompt, args.model, args.max_tokens, args.timeout, args.effort)
 
     result = content if args.raw_output else sanitize(args.task, content)
 
