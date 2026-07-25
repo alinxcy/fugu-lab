@@ -55,11 +55,24 @@ def build_prompt(task: str, user_prompt: str) -> str:
     return f"{prefix}\n\n{user_prompt}".strip() if prefix else user_prompt
 
 
+def build_params(model: str, max_tokens: int) -> dict[str, Any]:
+    """provider に素通しするパラメータ。
+
+    実測(docs/fugu-findings.md §5.6 実験C): ultra は `reasoning.effort="high"` を
+    明示すると既定より裏 25〜33% 安く、30〜43% 速く、レイテンシも安定する。
+    下げる方向のノブは無いので high が最安。base fugu では effort は無効なので付けない。
+    """
+    params: dict[str, Any] = {"max_tokens": max_tokens}
+    if "ultra" in model or "cyber" in model:
+        params["reasoning"] = {"effort": "high"}
+    return params
+
+
 def call_via_app(prompt: str, model: str, max_tokens: int, timeout: float) -> tuple[str, dict]:
     body = {
         "messages": [{"role": "user", "content": prompt}],
         "model": model,
-        "params": {"max_tokens": max_tokens},
+        "params": build_params(model, max_tokens),
     }
     content = ""
     measured: dict[str, Any] = {}
@@ -101,7 +114,7 @@ def call_direct(prompt: str, model: str, max_tokens: int, timeout: float) -> tup
         DIRECT_URL,
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": model, "messages": [{"role": "user", "content": prompt}],
-              "max_tokens": max_tokens},
+              **build_params(model, max_tokens)},
         timeout=timeout,
     )
     d = r.json()

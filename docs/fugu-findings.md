@@ -166,7 +166,37 @@ AI(このアシスタント含む)が Fugu をサブモデルとして呼ぶ用�
   裏トークンが素直に比例しない。
 - **長いタスクは reasoning が max_tokens を食い切り本文空**(52,001裏を払って出力0)。
 
-### 結論: 分散を制御する唯一のレバーは「モデル選択」
+### 実験C(追試): `reasoning.effort` は効く — ただし想定と逆向き
+
+公式 get-started に `reasoning.effort`(`high`/`xhigh`/`max`)というノブがあると判明したため、
+「クライアントから制御不能」という当初結論を再検証した。**部分的に誤りだった。**
+
+同一の推論負荷タスク(円卓の座席数え上げ)で、条件だけ振った結果:
+
+| 条件 | elapsed | 表 | 裏 | 裏率 | 本文 |
+|---|---|---|---|---|---|
+| base 既定 | 16.4s | 1,585 | 0 | 0% | ○ |
+| base `effort=high` | 15.9s | 1,585 | 0 | 0% | ○ |
+| **ultra 既定** | 145.7s / 116.4s | 924 / 1,544 | **22,066 / 17,945** | 96% / 92% | ○ |
+| **ultra `effort=high`** | 83.2s / 82.4s | 691 / 1,027 | **14,870 / 13,447** | 96% / 93% | ○ |
+| ultra `effort=xhigh` | 191.1s | 1,672 | **26,055** | 94% | **空** |
+
+(ultra の既定/high は再現確認のため 2 回ずつ実施。順序は 2 回とも一貫。)
+
+**判明したこと:**
+
+1. **`effort=high` を明示すると、既定より安く・速くなる**(裏 -25〜33%、レイテンシ -29〜43%)。
+   出力の量・質は同等以上だった。**既定は high より重い挙動をする**(既定=high ではない)。
+2. **`effort=high` はレイテンシが安定する**(83.2s / 82.4s とほぼ一定)。
+   既定は 145.7s / 116.4s とばらつく。エージェント運用の timeout 設計上これは効く。
+3. **下げる方向のノブは無い**。公式に用意されているのは `high`/`xhigh`/`max` のみで、
+   `low`/`minimal` に相当する値が無い。**`high` が最も安い設定**。
+4. **`xhigh` は裏がほぼ倍・レイテンシ2.3倍で、しかも本文空**(reasoning が枠を食い切る)。
+   少なくともこの規模のタスクでは払い損。
+5. **base fugu では effort は無効**(裏0のまま、reasoning も 1,438 vs 1,439 で不変)。
+   外注コストの削減レバーにはならない。
+
+### 結論(修正版): レバーは「モデル選択」＋「ultra なら effort=high を明示」
 
 プロンプト/スコープ/システム指示のどれでも ultra の裏は下げられない。よって:
 
@@ -179,9 +209,43 @@ AI(このアシスタント含む)が Fugu をサブモデルとして呼ぶ用�
   ultra をエージェントループで多用しない(不確実な裏コストが積算する)。
 - `fugu-cyber` はアクセス申請制(このキーでは permission_error)。未評価。
 
-> 端的に言えば「上手に分散させるノウハウ」は**プロンプト側にはほぼ無い**。
-> 分散するかは実質モデル選択で決まり、ultra を選んだ後は裏の量を客側から制御できない。
-> これは契約判断上むしろ重要: **ultra のコストは事前にもプロンプトでも制御しにくい。**
+> 端的に言えば「上手に分散させるノウハウ」は**プロンプト側には無い**(実験A/B)。
+> ただし**パラメータ側に1つだけある**: ultra を使うなら `reasoning.effort="high"` を
+> **必ず明示する**(既定より 25〜33% 安く、30〜43% 速く、レイテンシが安定する)。
+> それ以外に裏を減らす手段は無く、`xhigh`/`max` は上げるだけなので通常は使わない。
+
+## 5.7 Claude Code / Codex から Fugu を使う(公式 get-started)
+
+公式に「Claude Code を Fugu で駆動する」手順がある。要点と、このプロジェクトへの含意。
+
+```bash
+export ANTHROPIC_BASE_URL="https://api.sakana.ai"
+export ANTHROPIC_AUTH_TOKEN="fish_..."          # API_KEY ではなく AUTH_TOKEN
+export ANTHROPIC_DEFAULT_OPUS_MODEL="fugu-ultra"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="fugu"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="fugu"
+export CLAUDE_CODE_SUBAGENT_MODEL="fugu"
+claude
+```
+
+Codex 側は `~/.codex/config.toml` に `base_url = "https://api.sakana.ai/v1"`,
+`wire_api = "responses"`、`stream_idle_timeout_ms = 7200000`(2時間)等を設定する。
+**公式が2時間のアイドルタイムアウトを推奨している**時点で、ultra の遅さは仕様と分かる。
+
+**重要な構造的含意**: `ANTHROPIC_BASE_URL` は**プロセス全体に効く**ため、
+「メインループは Claude、サブエージェントだけ Fugu」という**ハイブリッドはこの方式では作れない**
+(全リクエストが Sakana に向く)。`CLAUDE_CODE_SUBAGENT_MODEL` も向き先は同じ base URL。
+
+→ ハイブリッド(Claude が判断し、機械的な下請けだけ Fugu)を実現する手段は
+**呼び出し単位で外注する `tools/fugu_offload.py` 方式**しかない。
+env 方式は「Claude を Fugu で**置き換える**」ものであって、負担を分担するものではない。
+
+その他:
+- 公開モデル: `fugu`, `fugu-ultra`, `fugu-ultra-v1.0/v1.1`, `fugu-cyber`(申請制)。
+  コンテキスト 1M トークン。`fugu-ultra-v1.1` のみ `max` に対応(他は `xhigh` にマップ)。
+- `/v1/responses`(Responses API)も提供。本アプリは `/v1/chat/completions` を使用。
+
+出典: [console.sakana.ai/get-started](https://console.sakana.ai/get-started)
 
 ## 6. 総括(小サンプルの暫定所感)
 
