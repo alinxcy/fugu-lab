@@ -52,6 +52,16 @@ class Config:
     def system_prompt_presets(self) -> dict[str, str]:
         return self._data.get("system_prompt_presets", {})
 
+    @property
+    def tools_allowlist(self) -> list[str]:
+        """tool 実行(Phase 2)で許可するツール名。既定は get_weather のみ。
+
+        破壊的ツール(repo を触る系)を Phase B で足すときも、ここに明示した
+        ものだけが実行対象になる(既定オフ運用の安全弁)。
+        """
+        tools = self._data.get("tools", {})
+        return list(tools.get("allowlist", ["get_weather"]))
+
     def _abs(self, p: str) -> Path:
         path = Path(p)
         return path if path.is_absolute() else (CHAT_DIR / path)

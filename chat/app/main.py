@@ -11,6 +11,7 @@ done で返すのは「手元の 1 レコードの値」だけ。
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 import uuid
@@ -23,13 +24,17 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from app.agent.loop import RoundInfo, run_agent_turn
 from app.config import Config, load_config
 from app.middleware.chain import MiddlewareChain, RequestContext
 from app.middleware.logger import RawLogger
 from app.middleware.usage_recorder import UsageRecorder
 from app.providers.base import Provider, ProviderError
 from app.providers.fugu import FuguProvider
+from app.store import append_usage
+from app.tools.builtins import build_registry
 from app.usage.assemble import StreamAssembler
+from app.usage.record import UsageRecord
 
 CHAT_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = CHAT_DIR / "static"
@@ -85,6 +90,10 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     # tools / tool_choice / max_tokens / temperature 等はそのまま provider に素通し(観測のみ)
     params: dict[str, Any] = Field(default_factory=dict)
+    # --- Phase 2 / tool 実行往復(既定オフ。明示 opt-in のときだけエージェントループを回す)---
+    execute_tools: bool = False
+    tools_allowlist: Optional[list[str]] = None   # None なら設定の allowlist を使う
+    max_rounds: int = 4                            # 暴走を止める往復上限
 
 
 def _sse(obj: dict[str, Any]) -> str:
@@ -156,12 +165,138 @@ def api_config() -> JSONResponse:
     return JSONResponse(cfg.public_view())  # 鍵は含めない
 
 
+def _record_from_usage(
+    cfg: Config, provider: Provider, provider_name: str, model: str,
+    conversation_id: str, raw_usage: Optional[dict[str, Any]],
+    ttft_s: Optional[float], elapsed_s: Optional[float], error: Optional[str],
+) -> dict[str, Any]:
+    """usage(または None/エラー)から UsageRecord を 1 件作って追記し、dict を返す。
+
+    tool 実行往復では 1 ラウンド = 1 リクエスト = 1 レコード。往復ごとの裏トークン/
+    レイテンシを dashboard 側が集計できるようにする。null/0 区別は parse_usage が担保。
+    """
+    fields = provider.parse_usage(raw_usage)
+    record = UsageRecord(
+        provider=provider_name, model=model, conversation_id=conversation_id,
+        ttft_s=ttft_s, elapsed_s=elapsed_s,
+        input_tokens=fields["input_tokens"], output_tokens=fields["output_tokens"],
+        cached_tokens=fields["cached_tokens"],
+        orchestration_input_tokens=fields["orchestration_input_tokens"],
+        orchestration_output_tokens=fields["orchestration_output_tokens"],
+        raw_usage=raw_usage, error=error,
+    )
+    append_usage(cfg.usage_log_path, record.to_dict())
+    return record.to_dict()
+
+
+async def _agent_event_gen(
+    cfg: Config, req: ChatRequest, provider_name: str, model: str, conversation_id: str,
+):
+    """tool 実行往復を SSE で中継する。
+
+    コールバック(on_chunk/on_round)はジェネレータに直接 yield できないので、
+    asyncio.Queue を挟んで橋渡しする。エージェントは別タスクで走らせ、こちらは
+    キューを吐き出し続ける。各ラウンドで UsageRecord を必ず 1 件記録する。
+    """
+    # provider 構築失敗(鍵未設定など)でもレコードは 1 件残す(schema 要件)。
+    try:
+        provider = _get_provider(cfg, provider_name)
+    except ProviderError as e:
+        record = _record_from_usage(
+            cfg, _NullProvider(), provider_name, model, conversation_id,
+            None, None, None, e.message)
+        yield _sse({"type": "error", "error": e.message})
+        yield _sse({"type": "done", "conversation_id": conversation_id,
+                    "stop_reason": "error", "rounds": 0,
+                    "measured": _measured_summary(record)})
+        return
+
+    allowlist = req.tools_allowlist if req.tools_allowlist is not None else cfg.tools_allowlist
+    registry = build_registry(allowlist=allowlist)
+    # execute モードではツール定義はレジストリが与える。params 側の tools は使わない。
+    params = {k: v for k, v in (req.params or {}).items() if k != "tools"}
+
+    queue: asyncio.Queue = asyncio.Queue()
+    _SENTINEL = object()
+
+    async def on_chunk(round_i: int, chunk: dict[str, Any]) -> None:
+        if _chunk_has_content(chunk):
+            for ch in chunk.get("choices") or []:
+                c = (ch.get("delta") or {}).get("content")
+                if c:
+                    await queue.put(_sse({"type": "delta", "round": round_i, "content": c}))
+        if _chunk_has_tool_calls(chunk):
+            await queue.put(_sse({"type": "tool_partial", "round": round_i}))
+        if chunk.get("_parse_error"):
+            await queue.put(_sse({"type": "warning", "message": "壊れた SSE 行を受信",
+                                  "raw": chunk.get("_raw_line")}))
+
+    async def on_round(info: RoundInfo) -> None:
+        record = _record_from_usage(
+            cfg, provider, provider_name, model, conversation_id,
+            info.assembler.raw_usage, info.ttft_s, info.elapsed_s, None)
+        for res in info.executed:
+            await queue.put(_sse({"type": "tool_result", "round": info.index,
+                                  "name": res.name, "ok": res.ok, "content": res.content}))
+        await queue.put(_sse({"type": "round_done", "round": info.index,
+                              "finish_reason": info.assembler.finish_reason,
+                              "measured": _measured_summary(record)}))
+
+    async def drive() -> None:
+        try:
+            result = await run_agent_turn(
+                provider, model, req.messages, params, registry,
+                max_rounds=req.max_rounds, on_round=on_round, on_chunk=on_chunk)
+            await queue.put(_sse({"type": "done", "conversation_id": conversation_id,
+                                  "final_content": result.final_content,
+                                  "stop_reason": result.stop_reason, "rounds": result.rounds}))
+        except ProviderError as e:
+            # あるラウンドの呼び出しが失敗。エラーレコードを 1 件残す(usage は取れないので None)。
+            _record_from_usage(cfg, provider, provider_name, model, conversation_id,
+                               None, None, None, e.message)
+            await queue.put(_sse({"type": "error", "error": e.message}))
+            await queue.put(_sse({"type": "done", "conversation_id": conversation_id,
+                                  "stop_reason": "error"}))
+        except Exception as e:  # noqa: BLE001
+            await queue.put(_sse({"type": "error", "error": f"{type(e).__name__}: {e}"}))
+            await queue.put(_sse({"type": "done", "conversation_id": conversation_id,
+                                  "stop_reason": "error"}))
+        finally:
+            await queue.put(_SENTINEL)
+
+    task = asyncio.create_task(drive())
+    try:
+        while True:
+            item = await queue.get()
+            if item is _SENTINEL:
+                break
+            yield item
+    finally:
+        await task
+
+
+class _NullProvider(Provider):
+    """usage を持たないダミー(provider 構築前に失敗したときの parse_usage 用)。"""
+
+    name = "null"
+
+    def stream_chat(self, messages, model, params=None):  # pragma: no cover - 呼ばれない
+        raise NotImplementedError
+
+
 @app.post("/api/chat")
 async def api_chat(req: ChatRequest, request: Request) -> StreamingResponse:
     cfg = _get_config()
     provider_name = req.provider or cfg.default_provider
     model = req.model or cfg.provider_config(provider_name).get("default_model") or cfg.default_model
     conversation_id = req.conversation_id or uuid.uuid4().hex
+
+    # --- Phase 2: tool 実行往復(明示 opt-in のときだけ)---------------------------
+    if req.execute_tools:
+        return StreamingResponse(
+            _agent_event_gen(cfg, req, provider_name, model, conversation_id),
+            media_type="text/event-stream",
+        )
 
     assembler = StreamAssembler()
     ctx = RequestContext(

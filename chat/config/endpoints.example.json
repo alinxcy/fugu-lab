@@ -7,6 +7,10 @@
     "default": "You are a helpful assistant.",
     "concise": "You are a concise assistant. Answer directly, no preamble."
   },
+  "_comment_tools": "tool 実行往復(Phase 2)で実行を許可するツール名。リクエストで execute_tools:true のときだけ往復が回る。allowlist にあるものだけ実行される(既定オフの安全弁)。repo を触る破壊的ツール(Phase B)を足すときも、ここに明示したものだけが対象。",
+  "tools": {
+    "allowlist": ["get_weather"]
+  },
   "providers": {
     "fugu": {
       "adapter": "fugu",
