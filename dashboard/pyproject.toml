@@ -10,6 +10,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest"]
 
+[tool.setuptools.packages.find]
+include = ["core*"]
+
 [tool.pytest.ini_options]
 # tests は `dashboard.core.*` を import する。リポジトリルート(このファイルの1つ上)を
 # パスに載せることで、chat/ 側と独立に dashboard 単体でテストできる。
