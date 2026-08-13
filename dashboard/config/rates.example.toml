@@ -1,0 +1,39 @@
+# Fugu ダッシュボード設定テンプレート。
+#
+# これは **example**。実運用では `rates.toml` にコピーして値を埋める
+# (`rates.toml` は .gitignore 済み=各自ローカルのみ。レートは変動/一部非公開ゆえ外出し)。
+#
+#   cp config/rates.example.toml config/rates.toml
+#
+# ここのレートは「正確な請求額」を出すためのものではない。
+# **相対的な重さ(どの消費が効いているか)を測る係数**として使う。
+# UI 側にもその但し書きを出すこと。
+
+[source]
+# 入力 JSONL のパス(相対パス決め打ちにしない=ここで指定)。
+# ライブ既定 = chat の出力。開発時はサンプルに向けると便利。
+live_path   = "../chat/data/usage.jsonl"
+sample_path = "../sample-data/usage.sample.jsonl"
+
+[rates]
+# 1 トークンあたりのレート(通貨単位は問わない=相対指標)。
+# ↓は **プレースホルダ**。実レートに差し替えるまでコストは参考にならない。
+# 裏(orchestration)は表とは別枠で追加課金される点に注意(裏率が中心指標である理由)。
+input                = 0.0
+output               = 0.0
+orchestration_input  = 0.0
+orchestration_output = 0.0
+
+# 契約プラン(「契約しない」を出せるよう、どれかを前提にしない)。
+# price は月額。included は目安(不明なら省略可)。
+[[plans]]
+name  = "Standard"
+price = 20
+
+[[plans]]
+name  = "Pro"
+price = 100
+
+[[plans]]
+name  = "Max"
+price = 200

@@ -1,0 +1,15 @@
+name: fugu-dashboard
+# Fugu 使用データ 契約判断ダッシュボード (dashboard/) の実行環境。
+#   conda env create -f dashboard/environment.yml
+#   conda activate fugu-dashboard
+#   cd dashboard && streamlit run app.py
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      # --- runtime ---
+      - streamlit
+      # --- dev / test (network 不要の単体テスト用) ---
+      - pytest
