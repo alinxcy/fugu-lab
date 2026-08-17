@@ -31,9 +31,14 @@ pip install -e ".[dev]"
 ## 起動
 
 ```bash
-uvicorn app.main:app --reload --port 8137
-# ブラウザで http://127.0.0.1:8137
+uvicorn app.main:app --reload --port 8150
+# ブラウザで http://127.0.0.1:8150
 ```
+
+**ポートは 8150 に揃えてある。** `tools/fugu_offload.py` の既定
+(`FUGU_CHAT_URL`、既定 `http://127.0.0.1:8150`) がここを見にくるため。
+別のポートで上げるなら `FUGU_CHAT_URL` も一緒に変えること。**片方だけ変えると、
+外注が黙って直接 API にフォールバックして記録が残らない**(実際に起きた)。
 
 ## テスト(ネットワーク不要)
 
@@ -47,8 +52,8 @@ pytest -q
 ## 実 Fugu で 1 往復して JSONL を確認する
 
 ```bash
-uvicorn app.main:app --port 8137 &
-curl -sN http://127.0.0.1:8137/api/chat -H 'Content-Type: application/json' \
+uvicorn app.main:app --port 8150 &
+curl -sN http://127.0.0.1:8150/api/chat -H 'Content-Type: application/json' \
   -d '{"messages":[{"role":"user","content":"Reply with exactly: hi"}],"params":{"max_tokens":16}}'
 cat data/usage.jsonl | python -m json.tool   # UsageRecord が 1 件出る
 ```

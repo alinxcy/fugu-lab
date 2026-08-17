@@ -63,16 +63,16 @@ base fugu は裏0で速く正確。**検証が機械化できる下請けは安�
 
 ```bash
 # コード生成 → そのまま実行検証できる(前置き・フェンスは除去済み)
-python tools/fugu_offload.py --task code --prompt "関数 human_bytes(n) を書け" > out.py
+.venv/bin/python tools/fugu_offload.py --task code --prompt "関数 human_bytes(n) を書け" > out.py
 
 # 構造化抽出 → そのまま json.tool / jq にパイプできる
-python tools/fugu_offload.py --task json --prompt "次から [{task,owner,due}] を抽出: ..." | jq .
+.venv/bin/python tools/fugu_offload.py --task json --prompt "次から [{task,owner,due}] を抽出: ..." | jq .
 
 # 正規表現 → そのまま re.compile できる文字列だけ返る
-PAT=$(python tools/fugu_offload.py --task regex --prompt "郵便番号にマッチ")
+PAT=$(.venv/bin/python tools/fugu_offload.py --task regex --prompt "郵便番号にマッチ")
 
 # 標準入力も食える(長い原文の要約・翻訳)
-cat draft.md | python tools/fugu_offload.py --task summary --prompt "次を1文で要約:"
+cat draft.md | .venv/bin/python tools/fugu_offload.py --task summary --prompt "次を1文で要約:"
 ```
 
 設計上の要点:

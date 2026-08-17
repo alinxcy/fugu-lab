@@ -27,7 +27,14 @@ import re
 import sys
 from typing import Any, Optional
 
-import httpx
+try:
+    import httpx
+except ModuleNotFoundError:  # システムの python には入っていない
+    sys.exit(
+        "httpx が見つかりません。このリポジトリの venv で実行してください:\n"
+        "  .venv/bin/python tools/fugu_offload.py ...\n"
+        "(素の `python tools/fugu_offload.py` は依存が入っていないので動きません)"
+    )
 
 APP_URL = os.environ.get("FUGU_CHAT_URL", "http://127.0.0.1:8150")
 DIRECT_URL = "https://api.sakana.ai/v1/chat/completions"
