@@ -119,7 +119,15 @@ def call_direct(prompt: str, model: str, max_tokens: int, timeout: float,
                 if line.startswith("FUGU_API_KEY="):
                     key = line.strip().split("=", 1)[1]
     if not key:
-        raise RuntimeError("FUGU_API_KEY が見つかりません(.env か環境変数に設定してください)")
+        # **サービスと同じ場所から読む。** fugu-chat.service は
+        # ここを読んで環境変数に入れているが、CLI から呼ぶと渡っていなかった。
+        # そのせいでフォールバックが常に落ちていた(2026-08-26 に発覚)
+        secret = os.path.expanduser("~/.claude/secrets/sakana-api-key")
+        if os.path.exists(secret):
+            key = open(secret, encoding="utf-8").read().strip()
+    if not key:
+        raise RuntimeError("FUGU_API_KEY が見つかりません"
+                           "(~/.claude/secrets/sakana-api-key か .env か環境変数)")
     r = httpx.post(
         DIRECT_URL,
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
